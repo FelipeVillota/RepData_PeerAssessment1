@@ -1,25 +1,170 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+author: "Felipe Villota"
 output: 
   html_document:
     keep_md: true
 ---
 
 
-## Loading and preprocessing the data
+# Creating an setting the directory 
+
+```{r}
+dir()
+if(!file.exists("R5P1")){dir.create("R5P1")}
+dir("R5P1")
+setwd("C:/Users/USER/Desktop/R/R5P1")
+```
 
 
 
-## What is mean total number of steps taken per day?
+# Load and explore CSV file 
+
+```{r}
+DATA<- read.csv("activity.csv")
+str(DATA)
+head(DATA)
+dim(DATA)
+names(DATA)
+```
 
 
 
-## What is the average daily activity pattern?
+# 1. What is mean total number of steps taken per day?
+
+## Total number of steps taken per day
+
+```{r}
+stepsperday <- aggregate(DATA$steps, list(DATA$date), FUN=sum)
+colnames(stepsperday) <- c("Date", "Steps")
+stepsperday
+```
+
+## Histogram of the total number of steps taken each day
+
+```{r}
+library(ggplot2)
+library(dplyr)
+stephist <- ggplot(stepsperday, aes(Steps))
+stephist+geom_histogram(boundary=0, binwidth=2500, col="darkgreen", 
+        fill="yellow")
+        
+```
+
+
+## Mean and median of the total number of steps taken per day
+
+```{r}
+mean(stepsperday$Steps, na.rm=TRUE)
+
+median(stepsperday$Steps, na.rm=TRUE)
+```
+
+
+# 2. What is the average daily activity pattern?
+
+## Time series of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+```{r}
+stepsperint <- aggregate(steps~interval,data=DATA,FUN=mean,na.action=na.omit)
+stepsperint$time <- stepsperint$interval/100
+G <- ggplot(stepsperint, aes(time, steps))
+G+geom_line(col="red")+ggtitle("Average steps per time interval")
+
+```
+
+
+## Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r}
+library(dplyr)
+M <- tbl_df(stepsperint)
+M %>% select(time, steps) %>% filter(steps==max(M$steps))
+```
+
+
+# 3. Imputing missing values
+
+## Calculate and report the total number of missing values in the datase
+
+```{r}
+ACT <- tbl_df(DATA)
+ACT %>% filter(is.na(steps)) %>% summarize(missing_values = n())
+```
+
+
+## Replace missing values
+```{r}
+DATA$CompleteSteps <- ifelse(is.na(DATA$steps), 
+                        round(stepsperint$steps[match(DATA$interval, 
+                        stepsperint$interval)],0), DATA$steps)
+head(DATA$CompleteSteps)
+
+## New dataset 
+
+DATAFull <- data.frame(steps=DATA$CompleteSteps, 
+                           interval=DATA$interval, date=DATA$date)
+
+
+head(DATAFull)
+
+```
+
+
+##  Histogram of the total number of steps taken each day with missing data filled in
+```{r}
+Full <- aggregate(DATAFull$steps, list(DATAFull$date), FUN=sum)
+colnames(Full) <- c("Date", "Steps")
+
+H2 <- ggplot(Full, aes(Steps))
+H2+geom_histogram(boundary=0, binwidth=2500, col="darkgreen", fill="lightyellow")
+      
+```
 
 
 
-## Imputing missing values
+## What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r}
+mean(Full$Steps)
+median(Full$Steps)
+
+# Both decreased slightly
+
+```
+
+# 4. Are there differences in activity patterns between weekdays and weekends? 
+
+##Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
 
 
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+DATAFull$RealDate <- as.Date(DATAFull$date, format = "%Y-%m-%d")
+DATAFull$weekday <- weekdays(DATAFull$RealDate)
+
+
+
+for(i in 1:length(DATAFull$date)){
+  if(weekdays(as.Date(DATAFull$date[i]))=="Sábado"|weekdays(as.Date(DATAFull$date[i]))=="Domingo"){
+    DATAFull$day[i]="weekend"
+  }
+  else{
+    DATAFull$day[i]="weekday"
+  }
+}
+
+head(DATAFull, n=10)
+
+```
+
+
+
+## Two time series plot of the 5-minute interval (x) and the average number of steps taken averaged across weekday days or weekend days (y).
+
+```{r}
+weekdata<-DATAFull %>% group_by(day,interval)%>% summarise(stepmean=mean(steps))
+ggplot(weekdata,aes (interval, stepmean)) + geom_line() +facet_wrap(day~.,nrow=2,ncol=1)+ggtitle("Mean Steps by Interval depending on Day")
+  
+```
+
+
